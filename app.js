@@ -24,15 +24,15 @@ console.log("DATABASE_URL:", process.env.DATABASE_URL);
 (async () => {
   try {
     await pool.query(`
-    CREATE TABLE IF NOT EXISTS posts (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      username TEXT DEFAULT 'Anonim',
-      image_url TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+      CREATE TABLE IF NOT EXISTS todos (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        due_date DATE NOT NULL,
+        done BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     console.log("Tabela 'posts' gotowa.");
   } catch (err) {
@@ -41,39 +41,37 @@ console.log("DATABASE_URL:", process.env.DATABASE_URL);
   }
 })();
 
-// API bloga
-app.get("/posts", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM posts ORDER BY created_at DESC");
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// API TODO
+app.get("/todos", async (req, res) => {
+  const result = await pool.query("SELECT * FROM todos ORDER BY due_date");
+  res.json(result.rows);
 });
 
-app.post("/posts", async (req, res) => {
-  const { title, content, username = "Anonim", image_url = null } = req.body;
-  if (!title || !content) return res.status(400).json({ error: "Missing title or content" });
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO posts (title, content, username, image_url)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [title, content, username || "Anonim", image_url]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.post("/todos", async (req, res) => {
+  const { title, content, due_date } = req.body;
+  const result = await pool.query(
+    "INSERT INTO todos (title, content, due_date) VALUES ($1, $2, $3) RETURNING *",
+    [title, content, due_date]
+  );
+  res.status(201).json(result.rows[0]);
 });
 
+app.put("/todos/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, content, due_date, done } = req.body;
+  const result = await pool.query(
+    "UPDATE todos SET title=$1, content=$2, due_date=$3, done=$4 WHERE id=$5 RETURNING *",
+    [title, content, due_date, done, id]
+  );
+  res.json(result.rows[0]);
+});
 
-app.get("/", (req, res) => res.type('html').send(html));
+app.delete("/todos/:id", async (req, res) => {
+  const { id } = req.params;
+  await pool.query("DELETE FROM todos WHERE id = $1", [id]);
+  res.sendStatus(204);
+});
 
-const server = app.listen(port, () => console.log(`App listening on port ${port}!`));
-server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 120 * 1000;
 
 const html = `
 <!DOCTYPE html>
