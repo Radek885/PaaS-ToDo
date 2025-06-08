@@ -72,6 +72,10 @@ app.delete("/todos/:id", async (req, res) => {
   res.sendStatus(204);
 });
 
+app.listen(port, () => {
+  console.log(`Serwer działa na porcie ${port}`);
+});
+
 
 const html = `
 <!DOCTYPE html>
